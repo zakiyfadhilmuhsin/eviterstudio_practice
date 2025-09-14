@@ -8,7 +8,23 @@ import { LocalAuthGuard } from "../guards/local-auth.guard";
 
 @Controller('auth')
 export class AuthController {
-    constructor(private authService: AuthService) { }
+    /**
+     * 1. Register
+     * 2. Login
+     *  2.a. Local (username/password) Strategy
+     *  2.b. OAuth (Google) Strategy
+     * 3. Logout
+     * 4. Email / Phone Verification
+     * 5. Forgot Password / Reset Password
+     * 6. Change Password
+     * 7. Two-Factor Authentication (2FA)
+     * 8. Account Lockout / Rate Limiting
+     * 9. Remember Me / Persistent Login
+     * 10. Session Management
+     * 11. Profile Management
+     * 12. Account Deletion / Deactivation
+     */
+    constructor(private authService: AuthService) {}
 
     @Post('login')
     @UseGuards(LocalAuthGuard)
