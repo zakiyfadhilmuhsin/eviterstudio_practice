@@ -13,3 +13,174 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// =============================================
+// AUTHENTICATION & USER MANAGEMENT SCHEMA
+// =============================================
+
+// Main User model - core user information
+model User {
+  id        String  @id @default(cuid())
+  email     String  @unique
+  username  String? @unique
+  firstName String?
+  lastName  String?
+  avatar    String?
+  phone     String?
+
+  // Authentication status
+  isActive    Boolean   @default(true)
+  isVerified  Boolean   @default(false)
+  lastLoginAt DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  passwords          Password[]
+  oauthAccounts      OAuthAccount[]
+  sessions           Session[]
+  refreshTokens      RefreshToken[]
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+// Password management - supports multiple passwords per user for history
+model Password {
+  id       String  @id @default(cuid())
+  userId   String
+  hash     String
+  isActive Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("passwords")
+}
+
+// OAuth accounts - for Google, Facebook, GitHub, etc.
+model OAuthAccount {
+  id           String    @id @default(cuid())
+  userId       String
+  provider     String // google, facebook, github, etc.
+  providerId   String // Provider's user ID
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
+}
+
+// User sessions for tracking active logins
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// JWT Refresh tokens
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+
+  // Device/client info
+  userAgent String?
+  ipAddress String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// =============================================
+// SECURITY FEATURES
+// =============================
+
+// Email verification tokens
+model EmailVerification {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verifications")
+}
+
+// Password reset tokens
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_resets")
+}
+
+// Audit log for security events
+model AuditLog {
+  id        String  @id @default(cuid())
+  userId    String?
+  action    String // login, logout, password_change, etc.
+  resource  String? // what was affected
+  details   Json? // additional context
+  ipAddress String?
+  userAgent String?
+  success   Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations (optional - user might be deleted)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
