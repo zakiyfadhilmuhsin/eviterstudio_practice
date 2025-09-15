@@ -1,6 +1,3 @@
-// Main Auth Service (Orchestrator)
-export { AuthService } from './auth.service';
-
 // Specialized Services
 export { AuthenticationService } from './authentication.service';
 export { PasswordService } from './password.service';

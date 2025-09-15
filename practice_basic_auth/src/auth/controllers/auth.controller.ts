@@ -1,6 +1,4 @@
 import { Body, Controller, Get, Post, Patch, Delete, Request, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
-import { AuthService } from "../services/auth.service";
-import { AuthGuard } from "@nestjs/passport";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { LocalAuthGuard } from "../guards/local-auth.guard";
 import {
@@ -14,13 +12,14 @@ import {
     ResendVerificationDto
 } from "../dto";
 import { GoogleAuthGuard } from "../guards/google-auth.guard";
+import { AuthenticationService, EmailVerificationService, OAuthService, PasswordService, ProfileService } from "../services";
 
 @Controller('auth')
 export class AuthController {
     /**
-     * 1. Register
+     * 1. Register ✅
      * 2. Login
-     *  2.a. Local (username/password) Strategy
+     *  2.a. Local (username/password) Strategy ✅
      *  2.b. OAuth (Google) Strategy - Token Login (Mobile/SPA)
      *  2.c. OAuth (Google) Strategy - Redirect Flow (Web)
      *  2.d. OAuth (Google) Strategy - Callback setelah user login di Google
@@ -35,14 +34,20 @@ export class AuthController {
      * 11. Profile Management
      * 12. Account Deletion / Deactivation
      */
-    constructor(private authService: AuthService) {}
+    constructor(
+        private authenticationService: AuthenticationService,
+        private passwordService: PasswordService,
+        private oauthService: OAuthService,
+        private emailVerificationService: EmailVerificationService,
+        private profileService: ProfileService
+    ) {}
 
     // =============================================
     // 1. REGISTER
     // =============================================
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
-        return this.authService.register(registerDto);
+        return this.authenticationService.register(registerDto);
     }
 
     // =============================================
@@ -55,14 +60,15 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async login(@Body() loginDto: LoginDto, @Request() req) {
         // Passport local akan mengisi req.user jika valid
-        return this.authService.login(req.user);
+        return this.authenticationService.login(req.user);
     }
 
     // 2.b. OAuth (Google) Strategy - Token Login (Mobile/SPA)
     @Post('google')
     async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
         // Login menggunakan Google access token (untuk mobile/SPA)
-        return this.authService.googleTokenLogin(googleLoginDto);
+        const user = await this.oauthService.verifyGoogleToken(googleLoginDto.accessToken);
+        return this.authenticationService.login(user);
     }
 
     // 2.c. OAuth (Google) Strategy - Redirect Flow (Web)
@@ -79,7 +85,8 @@ export class AuthController {
     async googleAuthCallback(@Request() req) {
         // Google strategy sudah memproses user dan masukkan ke req.user
         // Sekarang generate JWT dan return ke frontend
-        return this.authService.googleAuthCallback(req.user);
+        const processedUser = await this.oauthService.handleGoogleCallback(req.user);
+        return this.authenticationService.login(processedUser);
     }
 
     // =============================================
@@ -90,7 +97,7 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async logout(@Request() req) {
         const token = req.headers.authorization?.split(' ')[1];
-        return this.authService.logout(req.user.id, token);
+        return this.authenticationService.logout(req.user.id, token);
     }
 
     // =============================================
@@ -99,13 +106,13 @@ export class AuthController {
     @Post('verify-email')
     @HttpCode(HttpStatus.OK)
     async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
-        return this.authService.verifyEmail(verifyEmailDto);
+        return this.emailVerificationService.verifyEmail(verifyEmailDto);
     }
 
     @Post('resend-verification')
     @HttpCode(HttpStatus.OK)
     async resendVerification(@Body() resendVerificationDto: ResendVerificationDto) {
-        return this.authService.resendVerification(resendVerificationDto);
+        return this.emailVerificationService.resendVerification(resendVerificationDto);
     }
 
     // =============================================
@@ -114,13 +121,13 @@ export class AuthController {
     @Post('forgot-password')
     @HttpCode(HttpStatus.OK)
     async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-        return this.authService.forgotPassword(forgotPasswordDto);
+        return this.passwordService.forgotPassword(forgotPasswordDto);
     }
 
     @Post('reset-password')
     @HttpCode(HttpStatus.OK)
     async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-        return this.authService.resetPassword(resetPasswordDto);
+        return this.passwordService.resetPassword(resetPasswordDto);
     }
 
     // =============================================
@@ -129,7 +136,7 @@ export class AuthController {
     @Patch('change-password')
     @UseGuards(JwtAuthGuard)
     async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
-        return this.authService.changePassword(req.user.id, changePasswordDto);
+        return this.passwordService.changePassword(req.user.id, changePasswordDto);
     }
 
     // =============================================
@@ -196,7 +203,7 @@ export class AuthController {
     @Get('profile')
     @UseGuards(JwtAuthGuard)
     async getProfile(@Request() req) {
-        return this.authService.getProfile(req.user.id);
+        return this.profileService.getProfile(req.user.id);
     }
 
     @Patch('profile')
@@ -212,7 +219,7 @@ export class AuthController {
     @Delete('account')
     @UseGuards(JwtAuthGuard)
     async deactivateAccount(@Request() req) {
-        return this.authService.deactivateAccount(req.user.id);
+        return this.authenticationService.deactivateAccount(req.user.id);
     }
 
     @Post('account/reactivate')

@@ -7,7 +7,6 @@ import { UsersModule } from "src/users/users.module";
 import { AuthController } from "./controllers/auth.controller";
 
 // Services
-import { AuthService } from "./services/auth.service";
 import { AuthenticationService } from "./services/authentication.service";
 import { PasswordService } from "./services/password.service";
 import { EmailVerificationService } from "./services/email-verification.service";
@@ -32,9 +31,6 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
         AuthController
     ],
     providers: [
-        // Main orchestrator service
-        AuthService,
-
         // Specialized services
         AuthenticationService,
         PasswordService,
@@ -48,7 +44,6 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
         JwtStrategy
     ],
     exports: [
-        AuthService,
         AuthenticationService,
         PasswordService,
         EmailVerificationService,
