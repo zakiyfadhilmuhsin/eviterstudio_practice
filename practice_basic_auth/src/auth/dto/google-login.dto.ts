@@ -1,6 +1,7 @@
-import { IsString } from "class-validator";
+import { IsString, IsNotEmpty } from "class-validator";
 
 export class GoogleLoginDto {
-    @IsString()
-    accessToken: string; // Token dari Google
+    @IsString({ message: 'Access token must be a string' })
+    @IsNotEmpty({ message: 'Access token is required' })
+    accessToken: string;
 }

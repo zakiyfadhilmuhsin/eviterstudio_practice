@@ -1,12 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  //output   = "../generated/prisma"
 }
 
 datasource db {
@@ -20,75 +13,80 @@ datasource db {
 
 // Main User model - core user information
 model User {
-  id        String  @id @default(cuid())
-  email     String  @unique
-  username  String? @unique
-  firstName String?
-  lastName  String?
-  avatar    String?
-  phone     String?
-
-  // Authentication status
-  isActive    Boolean   @default(true)
-  isVerified  Boolean   @default(false)
-  lastLoginAt DateTime?
+  //  Primary fields
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  username           String?             @unique
+  firstName          String?
+  lastName           String?
+  avatar             String?
+  phone              String?
+  isActive           Boolean             @default(true)
+  isVerified         Boolean             @default(false)
+  lastLoginAt        DateTime?
 
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   // Relations
-  passwords          Password[]
-  oauthAccounts      OAuthAccount[]
-  sessions           Session[]
-  refreshTokens      RefreshToken[]
-  emailVerifications EmailVerification[]
-  passwordResets     PasswordReset[]
   auditLogs          AuditLog[]
+  emailVerifications EmailVerification[]
+  oauthAccounts      OAuthAccount[]
+  passwordResets     PasswordReset[]
+  passwords          Password[]
+  refreshTokens      RefreshToken[]
+  sessions           Session[]
 
+  // Indexes
   @@map("users")
 }
 
 // Password management - supports multiple passwords per user for history
 model Password {
-  id       String  @id @default(cuid())
-  userId   String
-  hash     String
-  isActive Boolean @default(true)
+  // Primary fields
+  id        String   @id @default(cuid())
+  userId    String
+  hash      String
+  isActive  Boolean  @default(true)
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@map("passwords")
 }
 
 // OAuth accounts - for Google, Facebook, GitHub, etc.
 model OAuthAccount {
+  // Primary fields
   id           String    @id @default(cuid())
   userId       String
-  provider     String // google, facebook, github, etc.
-  providerId   String // Provider's user ID
+  provider     String
+  providerId   String
   accessToken  String?
   refreshToken String?
   expiresAt    DateTime?
-
+  
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@unique([provider, providerId])
   @@map("oauth_accounts")
 }
 
 // User sessions for tracking active logins
 model Session {
+  //  Primary fields
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
@@ -101,20 +99,20 @@ model Session {
   updatedAt DateTime @updatedAt
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@map("sessions")
 }
 
 // JWT Refresh tokens
 model RefreshToken {
+  // Primary fields
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
   expiresAt DateTime
   isRevoked Boolean  @default(false)
-
-  // Device/client info
   userAgent String?
   ipAddress String?
 
@@ -123,33 +121,37 @@ model RefreshToken {
   updatedAt DateTime @updatedAt
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@map("refresh_tokens")
 }
 
 // =============================================
 // SECURITY FEATURES
-// =============================
+// =============================================
 
 // Email verification tokens
 model EmailVerification {
+  // Primary fields
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
-  expiresAt DateTime
 
   // Timestamps
+  expiresAt DateTime
   createdAt DateTime @default(now())
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@map("email_verifications")
 }
 
 // Password reset tokens
 model PasswordReset {
+  // Primary fields
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
@@ -160,27 +162,30 @@ model PasswordReset {
   createdAt DateTime @default(now())
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@map("password_resets")
 }
 
 // Audit log for security events
 model AuditLog {
-  id        String  @id @default(cuid())
+  // Primary fields
+  id        String   @id @default(cuid())
   userId    String?
-  action    String // login, logout, password_change, etc.
-  resource  String? // what was affected
-  details   Json? // additional context
+  action    String
+  resource  String?
+  details   Json?
   ipAddress String?
   userAgent String?
-  success   Boolean @default(true)
+  success   Boolean  @default(true)
 
   // Timestamps
   createdAt DateTime @default(now())
 
-  // Relations (optional - user might be deleted)
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id])
 
+  // Indexes
   @@map("audit_logs")
 }

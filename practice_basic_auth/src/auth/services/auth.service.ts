@@ -1,33 +1,98 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { JwtService } from "@nestjs/jwt";
-import { UsersService } from "src/users/users.service";
+import { Injectable } from "@nestjs/common";
+import {
+    RegisterDto,
+    AuthResponseDto,
+    UserProfileDto,
+    ForgotPasswordDto,
+    ResetPasswordDto,
+    ChangePasswordDto,
+    VerifyEmailDto,
+    ResendVerificationDto
+} from '../dto';
 
+// Import specialized services
+import { AuthenticationService } from './authentication.service';
+import { PasswordService } from './password.service';
+import { EmailVerificationService } from './email-verification.service';
+import { OAuthService } from './oauth.service';
+import { ProfileService } from './profile.service';
+
+/**
+ * Main Auth Service - Orchestrates authentication operations
+ * Delegates specific tasks to specialized services
+ */
 @Injectable()
 export class AuthService {
     constructor(
-        private usersService: UsersService,
-        private jwtService: JwtService,
-        private configService: ConfigService
+        private authenticationService: AuthenticationService,
+        private passwordService: PasswordService,
+        private emailVerificationService: EmailVerificationService,
+        private oauthService: OAuthService,
+        private profileService: ProfileService
     ) { }
 
-    async login(user: any) {
-        const payload = { sub: user.id, email: user.email };
-        return {
-            access_token: await this.jwtService.sign(payload, {
-                secret: this.configService.get('JWT_SECRET')
-            }) // Problemnya selalu disini. jadi jwt secret/secret sering lupa dimasukkan juga. jadi hanya payload yg membuat jwt terhubungnya gagal. kadang sudah cek berapa kali di jwt.strategy.ts ternyata masalahnya disini.
-        };
+    // =============================================
+    // AUTHENTICATION METHODS
+    // =============================================
+    async register(registerDto: RegisterDto): Promise<{ message: string; user: UserProfileDto }> {
+        return this.authenticationService.register(registerDto);
     }
 
-    async googleLogin(googleLoginDto: { accessToken: string }) {
-        // Di produksi: verifikasi token Google dengan Google API
-        // Contoh sederhana: kita asumsikan token valid dan dapatkan info dari Google
-        // Untuk demo, kita skip verifikasi langsung — TAPI DI PRODUKSI WAJIB DIVERIFIKASI!
+    async login(user: any): Promise<AuthResponseDto> {
+        return this.authenticationService.login(user);
+    }
 
-        // Anda bisa gunakan: https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${accessToken}
-        // Tapi karena kita pakai passport-google-oauth20, itu sudah otomatis diverifikasi
-        // Jadi di strategy kita sudah dapat user, jadi cukup login seperti biasa
-        throw new UnauthorizedException('Google login handled by strategy');
+    async logout(userId: string, token: string): Promise<{ message: string }> {
+        return this.authenticationService.logout(userId, token);
+    }
+
+    async deactivateAccount(userId: string): Promise<{ message: string }> {
+        return this.authenticationService.deactivateAccount(userId);
+    }
+
+    // =============================================
+    // PASSWORD METHODS
+    // =============================================
+    async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+        return this.passwordService.forgotPassword(forgotPasswordDto);
+    }
+
+    async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+        return this.passwordService.resetPassword(resetPasswordDto);
+    }
+
+    async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<{ message: string }> {
+        return this.passwordService.changePassword(userId, changePasswordDto);
+    }
+
+    // =============================================
+    // EMAIL VERIFICATION METHODS
+    // =============================================
+    async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<{ message: string }> {
+        return this.emailVerificationService.verifyEmail(verifyEmailDto);
+    }
+
+    async resendVerification(resendDto: ResendVerificationDto): Promise<{ message: string }> {
+        return this.emailVerificationService.resendVerification(resendDto);
+    }
+
+    // =============================================
+    // OAUTH METHODS
+    // =============================================
+    async googleAuthCallback(user: any): Promise<AuthResponseDto> {
+        const processedUser = await this.oauthService.handleGoogleCallback(user);
+        return this.authenticationService.login(processedUser);
+    }
+
+    async googleTokenLogin(googleLoginDto: { accessToken: string }): Promise<AuthResponseDto> {
+        const user = await this.oauthService.verifyGoogleToken(googleLoginDto.accessToken);
+        return this.authenticationService.login(user);
+    }
+
+    // =============================================
+    // PROFILE METHODS
+    // =============================================
+    async getProfile(userId: string): Promise<UserProfileDto> {
+        return this.profileService.getProfile(userId);
     }
 }
