@@ -25,18 +25,27 @@ model User {
   isVerified         Boolean             @default(false)
   lastLoginAt        DateTime?
 
+  // Account lockout fields
+  failedLoginAttempts    Int               @default(0)
+  lockedAt              DateTime?
+  lockoutExpiresAt      DateTime?
+
   // Timestamps
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
   // Relations
-  auditLogs          AuditLog[]
-  emailVerifications EmailVerification[]
-  oauthAccounts      OAuthAccount[]
-  passwordResets     PasswordReset[]
-  passwords          Password[]
-  refreshTokens      RefreshToken[]
-  sessions           Session[]
+  auditLogs            AuditLog[]
+  emailVerifications   EmailVerification[]
+  oauthAccounts        OAuthAccount[]
+  passwordResets       PasswordReset[]
+  accountReactivations AccountReactivation[]
+  passwords            Password[]
+  refreshTokens        RefreshToken[]
+  sessions             Session[]
+  userRoles            UserRole[]
+  loginAttempts        LoginAttempt[]
+  twoFactorAuth        TwoFactorAuth?
 
   // Indexes
   @@map("users")
@@ -168,6 +177,110 @@ model PasswordReset {
   @@map("password_resets")
 }
 
+// Account reactivation tokens
+model AccountReactivation {
+  // Primary fields
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@map("account_reactivations")
+}
+
+// =============================================
+// RBAC (ROLE-BASED ACCESS CONTROL) SCHEMA
+// =============================================
+
+// Roles - Define user roles (Admin, User, Moderator, etc.)
+model Role {
+  // Primary fields
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false) // Prevent deletion of system roles
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  // Indexes
+  @@map("roles")
+}
+
+// Permissions - Define granular permissions (users:create, posts:delete, etc.)
+model Permission {
+  // Primary fields
+  id          String   @id @default(cuid())
+  name        String   @unique
+  resource    String   // users, posts, orders, etc.
+  action      String   // create, read, update, delete, manage
+  description String?
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  // Indexes
+  @@map("permissions")
+}
+
+// Many-to-many: Role <-> Permission
+model RolePermission {
+  // Primary fields
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Many-to-many: User <-> Role
+model UserRole {
+  // Primary fields
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedBy String?  // Who assigned this role
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime? // Optional role expiration
+
+  // Relations
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
 // Audit log for security events
 model AuditLog {
   // Primary fields
@@ -188,4 +301,50 @@ model AuditLog {
 
   // Indexes
   @@map("audit_logs")
+}
+
+// Login attempts tracking for security
+model LoginAttempt {
+  // Primary fields
+  id               String   @id @default(cuid())
+  userId           String?
+  email            String?
+  ipAddress        String
+  userAgent        String?
+  success          Boolean  @default(false)
+  lockoutTriggered Boolean  @default(false)
+  failureReason    String?
+
+  // Timestamps
+  createdAt        DateTime @default(now())
+
+  // Relations
+  user             User?    @relation(fields: [userId], references: [id])
+
+  // Indexes
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([success, createdAt])
+  @@map("login_attempts")
+}
+
+// Two-Factor Authentication for enhanced security
+model TwoFactorAuth {
+  // Primary fields
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  secret       String   // TOTP secret (encrypted)
+  isEnabled    Boolean  @default(false)
+  backupCodes  String[] // Encrypted backup codes
+  lastUsedAt   DateTime?
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@map("two_factor_auth")
 }

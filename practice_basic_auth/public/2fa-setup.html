@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #4f46e5;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .step {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .step-item {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 10px;
+            font-weight: bold;
+            color: #6b7280;
+            position: relative;
+        }
+
+        .step-item.active {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .step-item.completed {
+            background: #10b981;
+            color: white;
+        }
+
+        .step-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: -25px;
+            width: 20px;
+            height: 2px;
+            background: #e5e7eb;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        input[type="email"], input[type="password"], input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="email"]:focus, input[type="password"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .btn {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background: #4338ca;
+        }
+
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .qr-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .qr-code {
+            border: 4px solid #e5e7eb;
+            border-radius: 12px;
+            max-width: 200px;
+            height: auto;
+            margin: 0 auto 20px;
+        }
+
+        .backup-codes {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .backup-codes h3 {
+            color: #dc2626;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .codes-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .backup-code {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #1f2937;
+        }
+
+        .instructions {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 16px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .instructions h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: #1e3a8a;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .token-input {
+            text-align: center;
+            font-size: 24px;
+            letter-spacing: 0.5em;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status-display {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .status-enabled {
+            color: #059669;
+        }
+
+        .status-disabled {
+            color: #dc2626;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Two-Factor Authentication</h1>
+            <p>Secure your account with an extra layer of protection</p>
+        </div>
+
+        <div class="content">
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step-item active" data-step="1">1</div>
+                <div class="step-item" data-step="2">2</div>
+                <div class="step-item" data-step="3">3</div>
+                <div class="step-item" data-step="4">4</div>
+            </div>
+
+            <!-- Step 1: Login -->
+            <div class="step active" id="step-1">
+                <h2>Step 1: Login to Your Account</h2>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn">Login</button>
+                </form>
+            </div>
+
+            <!-- Step 2: Setup 2FA -->
+            <div class="step" id="step-2">
+                <h2>Step 2: Setup Two-Factor Authentication</h2>
+
+                <div class="instructions">
+                    <h3>📱 What you'll need:</h3>
+                    <ol>
+                        <li>A smartphone or tablet</li>
+                        <li>An authenticator app (Google Authenticator, Authy, Microsoft Authenticator)</li>
+                    </ol>
+                </div>
+
+                <button class="btn" onclick="setup2FA()">Generate QR Code</button>
+            </div>
+
+            <!-- Step 3: Scan QR Code -->
+            <div class="step" id="step-3">
+                <h2>Step 3: Scan QR Code</h2>
+
+                <div class="qr-container">
+                    <img id="qr-code" class="qr-code" alt="QR Code for 2FA setup">
+                    <p>Scan this QR code with your authenticator app</p>
+                </div>
+
+                <div class="backup-codes hidden" id="backup-codes-container">
+                    <h3>⚠️ Backup Codes</h3>
+                    <p>Save these backup codes in a secure location. You can use them to access your account if you lose your phone.</p>
+                    <div class="codes-grid" id="backup-codes-grid"></div>
+                    <p><strong>Each code can only be used once!</strong></p>
+                </div>
+
+                <div class="form-group" style="margin-top: 30px;">
+                    <label for="verification-token">Enter the 6-digit code from your app:</label>
+                    <input type="text" id="verification-token" class="token-input" maxlength="6" placeholder="000000">
+                </div>
+
+                <button class="btn" onclick="enable2FA()">Verify & Enable 2FA</button>
+                <button class="btn btn-secondary" onclick="showStep(2)">Back</button>
+            </div>
+
+            <!-- Step 4: Success -->
+            <div class="step" id="step-4">
+                <h2>🎉 Two-Factor Authentication Enabled!</h2>
+
+                <div class="alert alert-success">
+                    <strong>Success!</strong> Your account is now protected with two-factor authentication.
+                </div>
+
+                <div class="instructions">
+                    <h3>What happens next:</h3>
+                    <ol>
+                        <li>Every time you log in, you'll need to enter a code from your authenticator app</li>
+                        <li>Keep your backup codes safe - you'll need them if you lose your phone</li>
+                        <li>You can disable 2FA anytime from your account settings</li>
+                    </ol>
+                </div>
+
+                <div class="status-display">
+                    <h3 class="status-enabled">✅ 2FA Status: ENABLED</h3>
+                </div>
+
+                <button class="btn" onclick="window.location.href='2fa-manage.html'">Manage 2FA Settings</button>
+            </div>
+
+            <!-- Alerts -->
+            <div id="alert-container"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        let currentStep = 1;
+
+        // API Configuration
+        const API_BASE = 'http://localhost:3018/auth';
+
+        // Utility functions
+        function showAlert(message, type = 'error') {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        function showStep(stepNumber) {
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active');
+            });
+
+            // Update step indicators
+            document.querySelectorAll('.step-item').forEach((item, index) => {
+                item.classList.remove('active', 'completed');
+                if (index + 1 < stepNumber) {
+                    item.classList.add('completed');
+                } else if (index + 1 === stepNumber) {
+                    item.classList.add('active');
+                }
+            });
+
+            // Show target step
+            document.getElementById(`step-${stepNumber}`).classList.add('active');
+            currentStep = stepNumber;
+        }
+
+        function showLoading(button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = originalText + '<span class="loading"></span>';
+            button.disabled = true;
+            return originalText;
+        }
+
+        function hideLoading(button, originalText) {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+
+        // Login function
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const submitButton = e.target.querySelector('.btn');
+            const originalText = showLoading(submitButton);
+
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    authToken = data.access_token;
+                    showAlert('Login successful!', 'success');
+                    showStep(2);
+                } else {
+                    showAlert(data.message || 'Login failed');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                hideLoading(submitButton, originalText);
+            }
+        });
+
+        // Setup 2FA
+        async function setup2FA() {
+            if (!authToken) {
+                showAlert('Please login first');
+                return;
+            }
+
+            const button = event.target;
+            const originalText = showLoading(button);
+
+            try {
+                const response = await fetch(`${API_BASE}/2fa/setup`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Display QR code
+                    document.getElementById('qr-code').src = data.data.qrCode;
+
+                    // Display backup codes
+                    const backupCodesContainer = document.getElementById('backup-codes-container');
+                    const backupCodesGrid = document.getElementById('backup-codes-grid');
+
+                    backupCodesGrid.innerHTML = '';
+                    data.data.backupCodes.forEach(code => {
+                        const codeElement = document.createElement('div');
+                        codeElement.className = 'backup-code';
+                        codeElement.textContent = code;
+                        backupCodesGrid.appendChild(codeElement);
+                    });
+
+                    backupCodesContainer.classList.remove('hidden');
+
+                    showAlert('QR code generated! Scan it with your authenticator app.', 'success');
+                    showStep(3);
+                } else {
+                    showAlert(data.message || 'Failed to setup 2FA');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                hideLoading(button, originalText);
+            }
+        }
+
+        // Enable 2FA
+        async function enable2FA() {
+            const token = document.getElementById('verification-token').value;
+
+            if (!token || token.length !== 6) {
+                showAlert('Please enter a valid 6-digit code');
+                return;
+            }
+
+            const button = event.target;
+            const originalText = showLoading(button);
+
+            try {
+                const response = await fetch(`${API_BASE}/2fa/enable`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('2FA enabled successfully!', 'success');
+                    showStep(4);
+                } else {
+                    showAlert(data.message || 'Invalid verification code');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                hideLoading(button, originalText);
+            }
+        }
+
+        // Format token input
+        document.getElementById('verification-token').addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    </script>
+</body>
+</html>
