@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Patch, Delete, Request, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
+import { Body, Controller, Get, Post, Patch, Delete, Request, UseGuards, HttpCode, HttpStatus, Param } from "@nestjs/common";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { LocalAuthGuard } from "../guards/local-auth.guard";
 import {
@@ -9,10 +9,13 @@ import {
     ResetPasswordDto,
     ChangePasswordDto,
     VerifyEmailDto,
-    ResendVerificationDto
+    ResendVerificationDto,
+    UpdateProfileDto,
+    RefreshTokenDto,
+    LoginWithRememberMeDto
 } from "../dto";
 import { GoogleAuthGuard } from "../guards/google-auth.guard";
-import { AuthenticationService, EmailVerificationService, OAuthService, PasswordService, ProfileService } from "../services";
+import { AuthenticationService, EmailVerificationService, OAuthService, PasswordService, ProfileService, SessionService, RefreshTokenService } from "../services";
 
 @Controller('auth')
 export class AuthController {
@@ -23,23 +26,43 @@ export class AuthController {
      *  2.b. OAuth (Google) Strategy - Token Login (Mobile/SPA)
      *  2.c. OAuth (Google) Strategy - Redirect Flow (Web)
      *  2.d. OAuth (Google) Strategy - Callback setelah user login di Google
-     * 3. Logout
+     * 3. Logout ✅
      * 4. Email / Phone Verification
+     *  4.a. Verify Email
+     *  4.b. Resend Verification
      * 5. Forgot Password / Reset Password
+     *  5.a. Forgot Password
+     *  5.b. Reset Password
      * 6. Change Password
      * 7. Two-Factor Authentication (2FA)
+     *  7.a. Enable 2FA
+     *  7.b. Verify 2FA
      * 8. Account Lockout / Rate Limiting
-     * 9. Remember Me / Persistent Login
-     * 10. Session Management
-     * 11. Profile Management
+     * 9. Remember Me / Persistent Login ✅
+     *  9.a. Refresh Access Token ✅
+     *  9.b. Rotate Refresh Token ✅
+     *  9.c. Get User Refresh Tokens ✅
+     *  9.d. Revoke All Refresh Tokens ✅
+     *  9.e. Revoke Refresh Token ✅
+     * 10. Session Management ✅
+     *  10.a. View Active Sessions ✅
+     *  10.b. Revoke All Sessions Except Current ✅
+     *  10.c. Revoke Specific Session ✅
+     * 11. Profile Management ✅
+     *  11.a. View Profile ✅
+     *  11.b. Update Profile ✅
      * 12. Account Deletion / Deactivation
+     *  12.a. Deactivate Account
+     *  12.b. Reactivate Account
      */
     constructor(
         private authenticationService: AuthenticationService,
         private passwordService: PasswordService,
         private oauthService: OAuthService,
         private emailVerificationService: EmailVerificationService,
-        private profileService: ProfileService
+        private profileService: ProfileService,
+        private sessionService: SessionService,
+        private refreshTokenService: RefreshTokenService
     ) {}
 
     // =============================================
@@ -58,17 +81,17 @@ export class AuthController {
     @Post('login')
     @UseGuards(LocalAuthGuard)
     @HttpCode(HttpStatus.OK)
-    async login(@Body() loginDto: LoginDto, @Request() req) {
+    async login(@Body() loginDto: LoginWithRememberMeDto, @Request() req) {
         // Passport local akan mengisi req.user jika valid
-        return this.authenticationService.login(req.user);
+        return this.authenticationService.login(req.user, req, loginDto.rememberMe);
     }
 
     // 2.b. OAuth (Google) Strategy - Token Login (Mobile/SPA)
     @Post('google')
-    async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
+    async googleLogin(@Body() googleLoginDto: GoogleLoginDto, @Request() req) {
         // Login menggunakan Google access token (untuk mobile/SPA)
         const user = await this.oauthService.verifyGoogleToken(googleLoginDto.accessToken);
-        return this.authenticationService.login(user);
+        return this.authenticationService.login(user, req);
     }
 
     // 2.c. OAuth (Google) Strategy - Redirect Flow (Web)
@@ -86,7 +109,7 @@ export class AuthController {
         // Google strategy sudah memproses user dan masukkan ke req.user
         // Sekarang generate JWT dan return ke frontend
         const processedUser = await this.oauthService.handleGoogleCallback(req.user);
-        return this.authenticationService.login(processedUser);
+        return this.authenticationService.login(processedUser, req);
     }
 
     // =============================================
@@ -95,9 +118,9 @@ export class AuthController {
     @Post('logout')
     @UseGuards(JwtAuthGuard)
     @HttpCode(HttpStatus.OK)
-    async logout(@Request() req) {
+    async logout(@Request() req, @Body() body?: { refreshToken?: string }) {
         const token = req.headers.authorization?.split(' ')[1];
-        return this.authenticationService.logout(req.user.id, token);
+        return this.authenticationService.logout(req.user.id, token, body?.refreshToken);
     }
 
     // =============================================
@@ -166,11 +189,90 @@ export class AuthController {
     // =============================================
     // 9. REMEMBER ME / PERSISTENT LOGIN
     // =============================================
-    // TODO: Implement refresh token endpoints
+
+    /**
+     * Refresh Access Token
+     * Generate new access token using refresh token
+     */
     @Post('refresh')
-    async refreshToken(@Body() body: { refreshToken: string }) {
-        // TODO: Implement refresh token logic
-        return { message: 'Refresh token feature coming soon' };
+    @HttpCode(HttpStatus.OK)
+    async refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
+        const newAccessToken = await this.refreshTokenService.generateNewAccessToken(refreshTokenDto.refreshToken);
+
+        return {
+            access_token: newAccessToken,
+            token_type: 'Bearer',
+            expires_in: 3600
+        };
+    }
+
+    /**
+     * Rotate Refresh Token
+     * Replace old refresh token with new one (security best practice)
+     */
+    @Post('refresh/rotate')
+    @HttpCode(HttpStatus.OK)
+    async rotateRefreshToken(@Body() refreshTokenDto: RefreshTokenDto, @Request() req) {
+        const { accessToken, refreshToken } = await this.refreshTokenService.rotateRefreshToken(
+            refreshTokenDto.refreshToken,
+            req?.get('User-Agent'),
+            req?.ip || req?.connection?.remoteAddress
+        );
+
+        return {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            token_type: 'Bearer',
+            expires_in: 3600
+        };
+    }
+
+    /**
+     * Get User Refresh Tokens
+     * View all active refresh tokens for the user
+     */
+    @Get('refresh/tokens')
+    @UseGuards(JwtAuthGuard)
+    async getUserRefreshTokens(@Request() req) {
+        const tokens = await this.refreshTokenService.getUserRefreshTokens(req.user.id);
+        const stats = await this.refreshTokenService.getTokenStatistics(req.user.id);
+
+        return {
+            message: 'Refresh tokens retrieved successfully',
+            tokens,
+            statistics: stats
+        };
+    }
+
+    /**
+     * Revoke All Refresh Tokens
+     * Revoke all refresh tokens for the user (except current one if specified)
+     */
+    @Delete('refresh/tokens')
+    @UseGuards(JwtAuthGuard)
+    async revokeAllRefreshTokens(@Request() req, @Body() body?: { exceptCurrent?: boolean; currentToken?: string }) {
+        await this.refreshTokenService.revokeAllUserRefreshTokens(
+            req.user.id,
+            body?.exceptCurrent ? body?.currentToken : undefined
+        );
+
+        return {
+            message: 'All refresh tokens revoked successfully'
+        };
+    }
+
+    /**
+     * Revoke Refresh Token
+     * Manually revoke a specific refresh token by ID
+     */
+    @Delete('refresh/tokens/:tokenId')
+    @UseGuards(JwtAuthGuard)
+    async revokeRefreshToken(@Request() req, @Param('tokenId') tokenId: string) {
+        await this.refreshTokenService.revokeRefreshTokenById(tokenId, req.user.id);
+
+        return {
+            message: 'Refresh token revoked successfully'
+        };
     }
 
     // =============================================
@@ -179,22 +281,36 @@ export class AuthController {
     @Get('sessions')
     @UseGuards(JwtAuthGuard)
     async getSessions(@Request() req) {
-        // TODO: Get all active sessions for user
-        return { message: 'Session management coming soon' };
-    }
+        const currentToken = req.headers.authorization?.split(' ')[1];
+        const sessions = await this.sessionService.getUserSessions(req.user.id, currentToken);
 
-    @Delete('sessions/:sessionId')
-    @UseGuards(JwtAuthGuard)
-    async revokeSession(@Request() req, @Body() body: { sessionId: string }) {
-        // TODO: Revoke specific session
-        return { message: 'Session revocation coming soon' };
+        return {
+            message: 'Sessions retrieved successfully',
+            data: sessions,
+            stats: await this.sessionService.getSessionStats(req.user.id)
+        };
     }
 
     @Delete('sessions/all')
     @UseGuards(JwtAuthGuard)
     async revokeAllSessions(@Request() req) {
-        // TODO: Revoke all sessions except current
-        return { message: 'Revoke all sessions coming soon' };
+        const currentToken = req.headers.authorization?.split(' ')[1];
+        const result = await this.sessionService.revokeAllSessions(req.user.id, currentToken);
+
+        return result;
+    }
+
+    @Delete('sessions/:sessionId')
+    @UseGuards(JwtAuthGuard)
+    async revokeSession(@Request() req, @Param('sessionId') sessionId: string) {
+        const currentToken = req.headers.authorization?.split(' ')[1];
+        const result = await this.sessionService.revokeSession(
+            req.user.id,
+            sessionId,
+            currentToken
+        );
+
+        return result;
     }
 
     // =============================================
@@ -208,9 +324,12 @@ export class AuthController {
 
     @Patch('profile')
     @UseGuards(JwtAuthGuard)
-    async updateProfile(@Request() req, @Body() updateData: any) {
-        // TODO: Implement profile update
-        return { message: 'Profile update coming soon' };
+    async updateProfile(@Request() req, @Body() updateProfileDto: UpdateProfileDto) {
+        const updatedProfile = await this.profileService.updateProfile(req.user.id, updateProfileDto);
+        return {
+            message: 'Profile updated successfully',
+            profile: updatedProfile
+        };
     }
 
     // =============================================
@@ -228,71 +347,3 @@ export class AuthController {
         return { message: 'Account reactivation coming soon' };
     }
 }
-
-/** 
-    Catatan:
-    Perbedaan antara kedua endpoint Google OAuth ini adalah:
-
-    POST /auth/google (Token Login - Mobile/SPA)
-
-    @Post('google')
-    async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
-        return this.authService.googleTokenLogin(googleLoginDto);
-    }
-
-    Digunakan untuk:
-    - Mobile apps (Android/iOS)
-    - Single Page Applications (React, Vue, Angular)
-    - Desktop apps
-
-    Cara kerja:
-    1. Client sudah mendapatkan Google access token dari Google SDK
-    2. Client mengirim token ke endpoint ini
-    3. Server memverifikasi token langsung ke Google
-    4. Server return JWT token untuk authentication
-
-    Request body:
-    {
-        "accessToken": "ya29.a0AfH6SMC...",
-        "idToken": "eyJhbGciOiJSUzI1NiIs..."
-    }
-
-    ---
-    GET /auth/google (Redirect Flow - Web)
-
-    @Get('google')
-    @UseGuards(AuthGuard('google'))
-    async googleAuth() {
-        // Redirect ke Google OAuth
-    }
-
-    Digunakan untuk:
-    - Web applications (traditional web apps)
-    - Server-side rendered apps
-
-    Cara kerja:
-    1. User klik "Login with Google" di web
-    2. Browser redirect ke Google OAuth page
-    3. User login di Google
-    4. Google redirect kembali ke /auth/google/callback
-    5. Server process callback dan return JWT
-
-    Flow:
-    User → GET /auth/google → Redirect ke Google →
-    Google login → Redirect ke /auth/google/callback → JWT token
-
-    ---
-    Kapan pakai yang mana?
-
-    Gunakan POST (Token):
-    - ✅ Mobile apps (React Native, Flutter)
-    - ✅ SPA yang sudah ada Google SDK
-    - ✅ Client sudah handle Google login sendiri
-
-    Gunakan GET (Redirect):
-    - ✅ Traditional web apps
-    - ✅ Server-side rendered apps
-    - ✅ Tidak mau implement Google SDK di frontend
-
-    Kedua endpoint ini melengkapi satu sama lain untuk mendukung berbagai jenis aplikasi client.
- */

@@ -18,3 +18,13 @@ export {
     VerifyEmailDto,
     ResendVerificationDto
 } from './verify-email.dto';
+
+// Profile Management DTOs
+export { UpdateProfileDto } from './update-profile.dto';
+
+// Refresh Token DTOs
+export {
+    RefreshTokenDto,
+    LoginWithRememberMeDto,
+    AuthResponseWithRefreshDto
+} from './refresh-token.dto';

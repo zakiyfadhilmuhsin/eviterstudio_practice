@@ -10,15 +10,16 @@ export interface UserWithPassword extends User {
 export class UsersService {
     /**
      * == Table of Contents ==
-     * 
+     *
      * 1. findByEmail
      * 2. findById
      * 3. createUser
-     * 4. updateLastLogin
-     * 5. verifyUser
-     * 6. findByOAuthProvider
-     * 7. createUserWithOAuth
-     * 
+     * 4. updateUser
+     * 5. updateLastLogin
+     * 6. verifyUser
+     * 7. findByOAuthProvider
+     * 8. createUserWithOAuth
+     *
      * ========================
      */
     constructor(private prisma: PrismaService) { }
@@ -83,9 +84,46 @@ export class UsersService {
     }
 
     /**
+     * Update User
+     * Updates user profile information.
+     * @param id
+     * @param data
+     * @returns
+     */
+    async updateUser(id: string, data: {
+        username?: string;
+        firstName?: string;
+        lastName?: string;
+        phone?: string;
+        avatar?: string;
+    }): Promise<User> {
+        // Check if username is being updated and if it's already taken
+        if (data.username) {
+            const existingUser = await this.prisma.user.findFirst({
+                where: {
+                    username: data.username,
+                    NOT: { id }
+                }
+            });
+
+            if (existingUser) {
+                throw new Error('Username already exists');
+            }
+        }
+
+        return this.prisma.user.update({
+            where: { id },
+            data: {
+                ...data,
+                updatedAt: new Date()
+            }
+        });
+    }
+
+    /**
      * Update Last Login
      * Updates the last login timestamp for a user.
-     * @param id 
+     * @param id
      */
     async updateLastLogin(id: string): Promise<void> {
         await this.prisma.user.update({

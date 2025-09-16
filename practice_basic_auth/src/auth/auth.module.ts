@@ -12,6 +12,8 @@ import { PasswordService } from "./services/password.service";
 import { EmailVerificationService } from "./services/email-verification.service";
 import { OAuthService } from "./services/oauth.service";
 import { ProfileService } from "./services/profile.service";
+import { SessionService } from "./services/session.service";
+import { RefreshTokenService } from "./services/refresh-token.service";
 
 // Strategies
 import { LocalStrategy } from "./strategies/local.strategy";
@@ -37,6 +39,8 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
         EmailVerificationService,
         OAuthService,
         ProfileService,
+        SessionService,
+        RefreshTokenService,
 
         // Passport strategies
         LocalStrategy,
@@ -48,7 +52,9 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
         PasswordService,
         EmailVerificationService,
         OAuthService,
-        ProfileService
+        ProfileService,
+        SessionService,
+        RefreshTokenService
     ]
 })
 export class AuthModule { }

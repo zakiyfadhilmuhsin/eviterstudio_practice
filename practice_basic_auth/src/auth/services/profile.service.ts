@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
-import { UserProfileDto } from '../dto';
+import { UserProfileDto, UpdateProfileDto } from '../dto';
 import { plainToInstance } from 'class-transformer';
+import { AuthenticationService } from './authentication.service';
 
 @Injectable()
 export class ProfileService {
@@ -11,12 +12,13 @@ export class ProfileService {
      * 1. Profile Management
      *    - Get Profile
      *    - Update Profile
-     *    - Delete Profile
      * 
      * =============================================
      */
     constructor(
-        private usersService: UsersService
+        private usersService: UsersService,
+        @Inject(forwardRef(() => AuthenticationService))
+        private authenticationService: AuthenticationService
     ) {}
 
     // =============================================
@@ -43,31 +45,43 @@ export class ProfileService {
     /**
      * Update Profile
      * Update the profile of the authenticated user.
-     * @param userId 
-     * @param updateData 
-     * @returns 
+     * @param userId
+     * @param updateData
+     * @returns
      */
-    async updateProfile(userId: string, updateData: {
-        username?: string;
-        firstName?: string;
-        lastName?: string;
-        phone?: string;
-        avatar?: string;
-    }): Promise<UserProfileDto> {
-        // This would use a method in UsersService
-        // For now, just get the profile
-        return this.getProfile(userId);
-    }
+    async updateProfile(userId: string, updateData: UpdateProfileDto): Promise<UserProfileDto> {
+        try {
+            // Check if user exists first
+            const existingUser = await this.usersService.findById(userId);
+            if (!existingUser) {
+                throw new NotFoundException('User not found');
+            }
 
-    /**
-     * Delete Profile
-     * Soft delete the profile of the authenticated user.
-     * @param userId 
-     * @returns 
-     */
-    async deleteProfile(userId: string): Promise<{ message: string }> {
-        // Soft delete - mark as inactive
-        // This would be handled by AuthenticationService.deactivateAccount
-        return { message: 'Profile deletion should be handled by AuthenticationService.deactivateAccount' };
+            // Filter out undefined values to avoid updating fields with null
+            const filteredData = Object.entries(updateData)
+                .filter(([key, value]) => value !== undefined && value !== null && value !== '')
+                .reduce((obj, [key, value]) => ({
+                    ...obj,
+                    [key]: value
+                }), {});
+
+            // If no valid data to update, return current profile
+            if (Object.keys(filteredData).length === 0) {
+                throw new BadRequestException('No valid data provided for update');
+            }
+
+            // Update user profile
+            const updatedUser = await this.usersService.updateUser(userId, filteredData);
+
+            // Return updated profile
+            return plainToInstance(UserProfileDto, updatedUser, {
+                excludeExtraneousValues: true
+            });
+        } catch (error) {
+            if (error.message === 'Username already exists') {
+                throw new BadRequestException('Username already exists');
+            }
+            throw error;
+        }
     }
 }
