@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Logout Fix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">🔒 Test Session-Based Logout Fix</h1>
+
+        <!-- Step 1: Login -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Step 1: Login</h2>
+            <div class="flex gap-4">
+                <input type="email" id="email" placeholder="Email" value="test@example.com"
+                       class="border rounded px-3 py-2">
+                <input type="password" id="password" placeholder="Password" value="password123"
+                       class="border rounded px-3 py-2">
+                <button onclick="doLogin()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Login
+                </button>
+            </div>
+            <div id="loginResult" class="mt-4"></div>
+        </div>
+
+        <!-- Step 2: Test Profile Access -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Step 2: Test Profile Access (Should Work)</h2>
+            <button onclick="testProfile()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                Get Profile
+            </button>
+            <div id="profileResult1" class="mt-4"></div>
+        </div>
+
+        <!-- Step 3: Logout -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Step 3: Logout</h2>
+            <button onclick="doLogout()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                Logout
+            </button>
+            <div id="logoutResult" class="mt-4"></div>
+        </div>
+
+        <!-- Step 4: Test Profile Access After Logout -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Step 4: Test Profile Access (Should Fail)</h2>
+            <button onclick="testProfile2()" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">
+                Get Profile Again
+            </button>
+            <div id="profileResult2" class="mt-4"></div>
+        </div>
+
+        <!-- API Log -->
+        <div class="bg-gray-800 text-green-400 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">API Response Log</h3>
+            <div id="apiLog" class="text-xs font-mono max-h-64 overflow-y-auto">
+                Ready for testing...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+
+        async function doLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://localhost:3019/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+                logApiResponse('POST /auth/login', response.status, result);
+
+                if (response.ok && result.access_token) {
+                    authToken = result.access_token;
+                    document.getElementById('loginResult').innerHTML =
+                        '<div class="text-green-600 font-semibold">✅ Login successful! Token saved.</div>';
+                } else {
+                    document.getElementById('loginResult').innerHTML =
+                        '<div class="text-red-600 font-semibold">❌ Login failed: ' +
+                        (result.message || 'Unknown error') + '</div>';
+                }
+            } catch (error) {
+                logApiResponse('POST /auth/login', 'ERROR', { error: error.message });
+                document.getElementById('loginResult').innerHTML =
+                    '<div class="text-red-600 font-semibold">❌ Network error: ' + error.message + '</div>';
+            }
+        }
+
+        async function testProfile() {
+            if (!authToken) {
+                document.getElementById('profileResult1').innerHTML =
+                    '<div class="text-red-600 font-semibold">❌ No token available. Please login first.</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3019/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const result = await response.json();
+                logApiResponse('GET /auth/profile (Before logout)', response.status, result);
+
+                if (response.ok) {
+                    document.getElementById('profileResult1').innerHTML =
+                        '<div class="text-green-600 font-semibold">✅ Profile access successful!</div>' +
+                        '<div class="text-gray-600 text-sm mt-2">' + JSON.stringify(result, null, 2) + '</div>';
+                } else {
+                    document.getElementById('profileResult1').innerHTML =
+                        '<div class="text-red-600 font-semibold">❌ Profile access failed: ' +
+                        (result.message || 'Unknown error') + '</div>';
+                }
+            } catch (error) {
+                logApiResponse('GET /auth/profile (Before logout)', 'ERROR', { error: error.message });
+                document.getElementById('profileResult1').innerHTML =
+                    '<div class="text-red-600 font-semibold">❌ Network error: ' + error.message + '</div>';
+            }
+        }
+
+        async function doLogout() {
+            if (!authToken) {
+                document.getElementById('logoutResult').innerHTML =
+                    '<div class="text-red-600 font-semibold">❌ No token available. Please login first.</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3019/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                logApiResponse('POST /auth/logout', response.status, result);
+
+                if (response.ok) {
+                    document.getElementById('logoutResult').innerHTML =
+                        '<div class="text-green-600 font-semibold">✅ Logout successful! Session should be invalidated.</div>';
+                } else {
+                    document.getElementById('logoutResult').innerHTML =
+                        '<div class="text-red-600 font-semibold">❌ Logout failed: ' +
+                        (result.message || 'Unknown error') + '</div>';
+                }
+            } catch (error) {
+                logApiResponse('POST /auth/logout', 'ERROR', { error: error.message });
+                document.getElementById('logoutResult').innerHTML =
+                    '<div class="text-red-600 font-semibold">❌ Network error: ' + error.message + '</div>';
+            }
+        }
+
+        async function testProfile2() {
+            if (!authToken) {
+                document.getElementById('profileResult2').innerHTML =
+                    '<div class="text-red-600 font-semibold">❌ No token available.</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3019/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const result = await response.json();
+                logApiResponse('GET /auth/profile (After logout)', response.status, result);
+
+                if (response.ok) {
+                    document.getElementById('profileResult2').innerHTML =
+                        '<div class="text-red-600 font-semibold">❌ BUG: Profile access still works after logout!</div>' +
+                        '<div class="text-gray-600 text-sm mt-2">' + JSON.stringify(result, null, 2) + '</div>';
+                } else {
+                    document.getElementById('profileResult2').innerHTML =
+                        '<div class="text-green-600 font-semibold">✅ FIXED: Profile access denied after logout!</div>' +
+                        '<div class="text-gray-600 text-sm mt-2">Status: ' + response.status + ' - ' + result.message + '</div>';
+                }
+            } catch (error) {
+                logApiResponse('GET /auth/profile (After logout)', 'ERROR', { error: error.message });
+                document.getElementById('profileResult2').innerHTML =
+                    '<div class="text-green-600 font-semibold">✅ FIXED: Network error indicates session invalidated</div>' +
+                    '<div class="text-gray-600 text-sm mt-2">Error: ' + error.message + '</div>';
+            }
+        }
+
+        function logApiResponse(endpoint, status, data) {
+            const logElement = document.getElementById('apiLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${endpoint} - Status: ${status}\n${JSON.stringify(data, null, 2)}\n\n`;
+            logElement.textContent = logEntry + logElement.textContent;
+        }
+    </script>
+</body>
+</html>

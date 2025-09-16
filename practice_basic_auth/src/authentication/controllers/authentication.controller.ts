@@ -33,9 +33,9 @@ export class AuthenticationController {
      * 1. Register ✅
      * 2. Login
      *  2.a. Local (username/password) Strategy ✅
-     *  2.b. OAuth (Google) Strategy - Token Login (Mobile/SPA)
-     *  2.c. OAuth (Google) Strategy - Redirect Flow (Web)
-     *  2.d. OAuth (Google) Strategy - Callback setelah user login di Google
+     *  2.b. OAuth (Google) Strategy - Token Login (Mobile/SPA) ✅
+     *  2.c. OAuth (Google) Strategy - Redirect Flow (Web) ✅
+     *  2.d. OAuth (Google) Strategy - Callback setelah user login di Google ✅
      * 3. Logout ✅
      * 4. Email / Phone Verification ✅
      *  4.a. Verify Email ✅
@@ -140,6 +140,40 @@ export class AuthenticationController {
         const processedUser = await this.oauthService.handleGoogleCallback(req.user);
         return this.authenticationService.login(processedUser, req);
     }
+
+    // @Get('google/callback')
+    // @UseGuards(GoogleAuthGuard)
+    // async googleAuthCallback(@Request() req, @Query('state') state?: string) {
+    //     // Google strategy sudah memproses user dan masukkan ke req.user
+    //     // Sekarang generate JWT dan return ke frontend
+    //     const processedUser = await this.oauthService.handleGoogleCallback(req.user);
+    //     const authResult = await this.authenticationService.login(processedUser, req);
+
+    //     // For HTML client: redirect with token in URL
+    //     const redirectUrl = new URL('/google-login.html', 'http://localhost:3018');
+    //     redirectUrl.searchParams.set('token', (authResult as any).access_token);
+
+    //     if (state) {
+    //         redirectUrl.searchParams.set('state', state);
+    //     }
+
+    //     // Redirect browser to login page with token
+    //     return `
+    //         <!DOCTYPE html>
+    //         <html>
+    //         <head>
+    //             <title>Authentication Successful</title>
+    //             <script>
+    //                 // Redirect to login page with token
+    //                 window.location.href = "${redirectUrl.toString()}";
+    //             </script>
+    //         </head>
+    //         <body>
+    //             <p>Authentication successful. Redirecting...</p>
+    //         </body>
+    //         </html>
+    //     `;
+    // }
 
     // =============================================
     // 3. LOGOUT
