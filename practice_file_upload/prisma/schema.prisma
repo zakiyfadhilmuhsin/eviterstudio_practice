@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  //output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model File {
+  id          String   @id @default(uuid())
+  filename    String   // Original filename
+  mimetype    String   // File MIME type
+  size        Int      // File size in bytes
+  url         String   // DigitalOcean Spaces URL
+  key         String   // Object key in Spaces
+  bucket      String   // Bucket name
+  uploadType  String   // 'single' | 'multiple'
+  uploadId    String?  // Reference to Upload for multiple files
+  upload      Upload?  @relation(fields: [uploadId], references: [id])
+  uploadedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("files")
+}
+
+model Upload {
+  id          String   @id @default(uuid())
+  files       File[]   // Related files
+  status      String   // 'pending' | 'completed' | 'failed'
+  totalFiles  Int      // Total files in upload
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("uploads")
+}
